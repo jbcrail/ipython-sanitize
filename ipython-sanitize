@@ -1,0 +1,125 @@
+#!/usr/bin/env python
+
+import subprocess
+
+import click
+
+
+def start():
+    import sys
+    import traceback
+
+    try:
+        cli(obj={})
+    except KeyboardInterrupt:
+        click.echo("Interrupted by Ctrl-C.")
+        sys.exit(1)
+    except Exception:
+        click.echo(traceback.format_exc(), err=True)
+        sys.exit(1)
+
+
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+
+
+@click.group(context_settings=CONTEXT_SETTINGS)
+@click.version_option(prog_name="ipython-sanitize", version="0.0.1")
+@click.pass_context
+def cli(ctx):
+    """
+    Extract and validate items in IPython notebooks.
+    """
+    ctx.obj = {}
+
+
+def export(filename, fmt="script"):
+    try:
+        cmd = "jupyter nbconvert --to {} --stdout {} 2>/dev/null".format(fmt, filename)
+        output = subprocess.check_output(cmd, shell=True)
+    except subprocess.CalledProcessError:
+        output = ""
+    return output
+
+
+@cli.command(short_help="Extract/validate Python modules")
+@click.pass_context
+@click.option("--stdlib/--no-stdlib",
+              default=False,
+              help="Toggle whether to include Python standard library")
+@click.argument('notebooks', nargs=-1)
+def modules(ctx, notebooks, stdlib):
+    import ast
+    import re
+    from stdlib_list import stdlib_list
+
+    class ModuleReader(ast.NodeVisitor):
+        def __init__(self):
+            self.imports = set()
+
+        def generic_visit(self, node):
+            ast.NodeVisitor.generic_visit(self, node)
+            return list(self.imports)
+
+        def visit_Import(self, node):
+            for alias in node.names:
+                self.imports.add(alias.name)
+
+        def visit_ImportFrom(self, node):
+            self.imports.add(node.module)
+
+    def get_ipython_modules(s):
+        root = ast.parse(s)
+        return ModuleReader().visit(root)
+
+    default_modules = stdlib_list()
+    modules = set()
+
+    for f in notebooks:
+        for module in get_ipython_modules(export(f)):
+            if not stdlib and module in default_modules:
+                continue
+            if '.' in module:
+                modules.add(re.sub(r'\..*', '', module))
+            else:
+                modules.add(module)
+
+    for module in sorted(modules):
+        click.echo(module)
+
+
+@cli.command(short_help="Extract/validate Markdown URLs")
+@click.pass_context
+@click.argument('notebooks', nargs=-1)
+def urls(ctx, notebooks):
+    from bs4 import BeautifulSoup
+    import re
+
+    REGEX_URL = re.compile('^(http|https):.+')
+
+    for f in notebooks:
+        html = export(f, fmt="html")
+        soup = BeautifulSoup(html, 'html.parser')
+        for link in soup.find_all('a'):
+            if REGEX_URL.match(link.get('href')):
+                click.echo("{}: {}".format(f, link.get('href')))
+
+
+@cli.command(short_help="Extract/validate Markdown images")
+@click.pass_context
+@click.argument('notebooks', nargs=-1)
+def images(ctx, notebooks):
+    from bs4 import BeautifulSoup
+    import re
+
+    REGEX_URL = re.compile('^(http|https):.+')
+
+    for f in notebooks:
+        html = export(f, fmt="html")
+        soup = BeautifulSoup(html, 'html.parser')
+        for link in soup.find_all('img'):
+            if REGEX_URL.match(link.get('src')):
+                click.echo("{}: {}".format(f, link.get('src')))
+
+
+if __name__ == '__main__':
+    start()
