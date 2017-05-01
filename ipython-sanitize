@@ -3,6 +3,7 @@
 import subprocess
 
 import click
+import requests
 
 
 def start():
@@ -39,6 +40,22 @@ def export(filename, fmt="script"):
     except subprocess.CalledProcessError:
         output = ""
     return output
+
+
+def module_exists(name):
+    try:
+        __import__(name)
+    except ImportError:
+        return False
+    else:
+        return True
+
+
+def url_exists(url):
+    response = requests.head(url)
+    if not response.ok:
+        response = requests.get(url)
+    return response.ok
 
 
 @cli.command(short_help="Extract/validate Python modules")
@@ -84,7 +101,8 @@ def modules(ctx, notebooks, stdlib):
                 modules.add(module)
 
     for module in sorted(modules):
-        click.echo(module)
+        color = "green" if module_exists(module) else "red"
+        click.secho(module, fg=color)
 
 
 @cli.command(short_help="Extract/validate Markdown URLs")
@@ -101,7 +119,8 @@ def urls(ctx, notebooks):
         soup = BeautifulSoup(html, 'html.parser')
         for link in soup.find_all('a'):
             if REGEX_URL.match(link.get('href')):
-                click.echo("{}: {}".format(f, link.get('href')))
+                color = "green" if url_exists(link.get('href')) else "red"
+                click.secho("{}: {}".format(f, link.get('href')), fg=color)
 
 
 @cli.command(short_help="Extract/validate Markdown images")
@@ -118,7 +137,8 @@ def images(ctx, notebooks):
         soup = BeautifulSoup(html, 'html.parser')
         for link in soup.find_all('img'):
             if REGEX_URL.match(link.get('src')):
-                click.echo("{}: {}".format(f, link.get('src')))
+                color = "green" if url_exists(link.get('src')) else "red"
+                click.secho("{}: {}".format(f, link.get('src')), fg=color)
 
 
 if __name__ == '__main__':
