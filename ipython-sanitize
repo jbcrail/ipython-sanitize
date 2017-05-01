@@ -63,8 +63,11 @@ def url_exists(url):
 @click.option("--stdlib/--no-stdlib",
               default=False,
               help="Toggle whether to include Python standard library")
+@click.option("--verify/--no-verify",
+              default=True,
+              help="Toggle whether to verify modules")
 @click.argument('notebooks', nargs=-1)
-def modules(ctx, notebooks, stdlib):
+def modules(ctx, notebooks, stdlib, verify):
     import ast
     import re
     from stdlib_list import stdlib_list
@@ -100,45 +103,65 @@ def modules(ctx, notebooks, stdlib):
             else:
                 modules.add(module)
 
+    def output_color(module, verify):
+        if not verify:
+            return None
+        return "green" if module_exists(module) else "red"
+
     for module in sorted(modules):
-        color = "green" if module_exists(module) else "red"
-        click.secho(module, fg=color)
+        click.secho(module, fg=output_color(module, verify))
 
 
 @cli.command(short_help="Extract/validate Markdown URLs")
 @click.pass_context
+@click.option("--verify/--no-verify",
+              default=True,
+              help="Toggle whether to verify URLs")
 @click.argument('notebooks', nargs=-1)
-def urls(ctx, notebooks):
+def urls(ctx, notebooks, verify):
     from bs4 import BeautifulSoup
     import re
 
     REGEX_URL = re.compile('^(http|https):.+')
+
+    def output_color(url, verify):
+        if not verify:
+            return none
+        return "green" if url_exists(url) else "red"
 
     for f in notebooks:
         html = export(f, fmt="html")
         soup = BeautifulSoup(html, 'html.parser')
         for link in soup.find_all('a'):
-            if REGEX_URL.match(link.get('href')):
-                color = "green" if url_exists(link.get('href')) else "red"
-                click.secho("{}: {}".format(f, link.get('href')), fg=color)
+            url = link.get('href')
+            if REGEX_URL.match(url):
+                click.secho("{}: {}".format(f, url), fg=output_color(url, verify))
 
 
 @cli.command(short_help="Extract/validate Markdown images")
 @click.pass_context
+@click.option("--verify/--no-verify",
+              default=True,
+              help="Toggle whether to verify images")
 @click.argument('notebooks', nargs=-1)
-def images(ctx, notebooks):
+def images(ctx, notebooks, verify):
     from bs4 import BeautifulSoup
     import re
 
     REGEX_URL = re.compile('^(http|https):.+')
 
+    def output_color(image, verify):
+        if not verify:
+            return none
+        return "green" if url_exists(image) else "red"
+
     for f in notebooks:
         html = export(f, fmt="html")
         soup = BeautifulSoup(html, 'html.parser')
         for link in soup.find_all('img'):
-            if REGEX_URL.match(link.get('src')):
-                color = "green" if url_exists(link.get('src')) else "red"
-                click.secho("{}: {}".format(f, link.get('src')), fg=color)
+            url = link.get('src')
+            if REGEX_URL.match(url):
+                click.secho("{}: {}".format(f, url), fg=output_color(url, verify))
 
 
 if __name__ == '__main__':
