@@ -126,7 +126,7 @@ def urls(ctx, notebooks, verify):
 
     def output_color(url, verify):
         if not verify:
-            return none
+            return None
         return "green" if url_exists(url) else "red"
 
     for f in notebooks:
@@ -152,7 +152,7 @@ def images(ctx, notebooks, verify):
 
     def output_color(image, verify):
         if not verify:
-            return none
+            return None
         return "green" if url_exists(image) else "red"
 
     for f in notebooks:
