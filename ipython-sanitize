@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 
-import subprocess
-
 import click
+import nbconvert
 import requests
 
 
@@ -33,13 +32,17 @@ def cli(ctx):
     ctx.obj = {}
 
 
-def export(filename, fmt="script"):
-    try:
-        cmd = "jupyter nbconvert --to {} --stdout {} 2>/dev/null".format(fmt, filename)
-        output = subprocess.check_output(cmd, shell=True)
-    except subprocess.CalledProcessError:
-        output = ""
-    return output
+def export_as_html(filename):
+    html_exporter = nbconvert.HTMLExporter()
+    html_exporter.template_file = 'basic'
+    body, _ = html_exporter.from_filename(filename)
+    return body
+
+
+def export_as_python(filename):
+    py_exporter = nbconvert.PythonExporter()
+    output, _ = py_exporter.from_filename(filename)
+    return output.encode('utf8')
 
 
 def module_exists(name):
@@ -95,7 +98,7 @@ def modules(ctx, notebooks, stdlib, verify):
     modules = set()
 
     for f in notebooks:
-        for module in get_ipython_modules(export(f)):
+        for module in get_ipython_modules(export_as_python(f)):
             if not stdlib and module in default_modules:
                 continue
             if '.' in module:
@@ -130,7 +133,7 @@ def urls(ctx, notebooks, verify):
         return "green" if url_exists(url) else "red"
 
     for f in notebooks:
-        html = export(f, fmt="html")
+        html = export_as_html(f)
         soup = BeautifulSoup(html, 'html.parser')
         for link in soup.find_all('a'):
             url = link.get('href')
@@ -156,7 +159,7 @@ def images(ctx, notebooks, verify):
         return "green" if url_exists(image) else "red"
 
     for f in notebooks:
-        html = export(f, fmt="html")
+        html = export_as_html(f)
         soup = BeautifulSoup(html, 'html.parser')
         for link in soup.find_all('img'):
             url = link.get('src')
